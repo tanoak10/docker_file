@@ -1,0 +1,32 @@
+version: '3'
+name: flink-network
+networks:
+  flink-network:
+    external: true
+services:
+  jobmanager:
+    image: flink:1.17.2
+    container_name: jobmanager
+    volumes:
+      - /opt/flink-cdc/config/flink-conf.yaml:/opt/flink/conf/flink-conf.yaml
+    environment:
+      - TZ=Asia/Shanghai
+    ports:
+      - 8081:8081
+    command: ["jobmanager"]
+    networks:
+      - flink-network
+    privileged: true
+  taskmanager:
+    image: flink:1.17.2
+    container_name: taskmanager
+    volumes:
+      - /opt/flink-cdc/config/flink-conf.yaml:/opt/flink/conf/flink-conf.yaml
+    environment:
+      - TZ=Asia/Shanghai
+    depends_on:
+      - jobmanager
+    command: ["taskmanager"]
+    networks:
+      - flink-network
+    privileged: true
