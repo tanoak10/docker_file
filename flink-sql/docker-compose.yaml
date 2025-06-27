@@ -1,0 +1,101 @@
+name: flink-streampark
+
+networks:
+  flink-network:
+    external: true
+
+services:
+
+  mysql:
+    image: mysql:8.0.26
+    container_name: streampark-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: streampark
+      MYSQL_USER: streampark
+      MYSQL_PASSWORD: streampark
+    ports:
+      - "3307:3306"
+    volumes:
+      - ./mysql_data:/var/lib/mysql
+      - ./init-sql:/docker-entrypoint-initdb.d
+    networks:
+      - flink-network
+    restart: unless-stopped
+
+  streampark:
+    image: apache/streampark:2.1.5
+    container_name: streampark
+    depends_on:
+      - mysql
+    ports:
+      - "10000:10000"
+    environment:
+      TZ: Asia/Shanghai
+      JAVA_OPTS: "-Xms512m -Xmx2g"
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3307/streampark?useSSL=false&serverTimezone=Asia/Shanghai&characterEncoding=UTF-8
+      SPRING_DATASOURCE_USERNAME: streampark
+      SPRING_DATASOURCE_PASSWORD: streampark
+      SPRING_DATASOURCE_DRIVER_CLASS_NAME: com.mysql.cj.jdbc.Driver
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /etc/hosts:/etc/hosts:ro
+      - ./flink-1.17.2:/opt/flink
+    networks:
+      - flink-network
+    restart: unless-stopped
+
+  jobmanager:
+    image: flink:1.17.2
+    platform: linux/amd64
+    container_name: jobmanager
+    volumes:
+      - ./config/flink-conf.yaml:/opt/flink/conf/flink-conf.yaml
+      - ./flink-1.17.2/lib:/opt/flink/lib
+    environment:
+      - TZ=Asia/Shanghai
+    ports:
+      - "8081:8081"
+    command: ["jobmanager"]
+    networks:
+      - flink-network
+    privileged: true
+    restart: unless-stopped
+
+  taskmanager:
+    image: flink:1.17.2
+    platform: linux/amd64
+    container_name: taskmanager
+    volumes:
+      - ./config/flink-conf.yaml:/opt/flink/conf/flink-conf.yaml
+      - ./flink-1.17.2/lib:/opt/flink/lib
+    environment:
+      - TZ=Asia/Shanghai
+    depends_on:
+      - jobmanager
+    command: ["taskmanager"]
+    networks:
+      - flink-network
+    privileged: true
+    restart: unless-stopped
+
+  sql-gateway:
+    image: flink:1.17.2
+    platform: linux/amd64
+    container_name: sql-gateway
+    depends_on:
+      - jobmanager
+    command: >
+      bash -c "/opt/flink/bin/sql-gateway.sh start-foreground"
+    ports:
+      - "8083:8083"
+    volumes:
+      - ./flink-1.17.2:/opt/flink
+    networks:
+      - flink-network
+    environment:
+      - TZ=Asia/Shanghai
+    restart: unless-stopped
+
+volumes:
+  mysql_data:
